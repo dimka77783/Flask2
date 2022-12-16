@@ -1,7 +1,9 @@
-from flask import Flask, render_template, url_for, redirect
+from flask import Flask, render_template, url_for, redirect, request, session
 from flask_bootstrap import Bootstrap
 from flask_mysqldb import MySQL
 import yaml 
+import os
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 Bootstrap(app)
@@ -12,26 +14,32 @@ app.config['MYSQL_HOST'] = db['mysql_host']
 app.config['MYSQL_USER'] = db['mysql_user']
 app.config['MYSQL_PASSWORD'] = db['mysql_password']
 app.config['MYSQL_DB'] = db['mysql_db']
+app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 mysql = MySQL(app)
 
-@app.route('/')
+app.config['SECRET_KEY'] = os.urandom(24)
+
+@app.route('/', methods=['GET','POST'])
 def index():
+    if request.method == 'POST':
+        form = request.form
+        name = form['name']
+        age = form['age']
+        cursor = mysql.connection.cursor()
+        name = generate_password_hash(name)
+        cursor.execute("INSERT INTO employee(name, age) VALUES(%s, %s)", (name, age))
+        mysql.connection.commit()
+    return render_template('index1.html')
+
+@app.route('/employees')
+def employees():
     cursor = mysql.connection.cursor()
-    #cursor.execute('INSERT INTO user VALUES(%s)',(['John']))
-    #mysql.connection.commit()
-    resut = cursor.execute('SELECT*FROM user')
-    if resut>0:
-        users = cursor.fetchall()
-        print(users)
-    return render_template('index.html')
-
-@app.route('/about')
-def about():
-    return render_template('about.html')
-
-@app.route('/css')
-def css():
-    return render_template('css.html')
+    result = cursor.execute("SELECT * FROM employee")
+    if result>0:
+        employees = cursor.fetchall()
+        session['username'] = employees[0]['name']
+        #return str(check_password_hash(employees[11]['name'],'password'))
+        return render_template('employees.html', employees=employees)
 
 if __name__ =='__main__':
     app.run(debug=True, port=5000)
